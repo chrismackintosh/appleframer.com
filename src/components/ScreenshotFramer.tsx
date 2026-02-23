@@ -18,6 +18,7 @@ const ScreenshotFramer = ({
   isLoading,
   error,
 }: ScreenshotFramerProps) => {
+  // Exact pixel tolerance for device matching
   const TOLERANCE = 2;
 
   const [images, setImages] = useState<File[]>([]);
@@ -28,24 +29,32 @@ const ScreenshotFramer = ({
   const [selectedImageIndex, setSelectedImageIndex] = useState<number | null>(
     null
   );
+  // Black frame is the default for presentations
+  const [blackFrame, setBlackFrame] = useState(true);
 
-  // Update selectedFrame when frames are loaded
+  // Auto-select the first (and only) frame when frames load
   useEffect(() => {
     if (frames.length > 0 && !selectedFrame) {
       setSelectedFrame(frames[0]);
     }
   }, [frames, selectedFrame]);
 
+  /**
+   * Detect which device frame to use based on the uploaded image dimensions.
+   *
+   * Strategy:
+   * 1. Exact match (within TOLERANCE pixels) — handles native @3x screenshots
+   * 2. Scale-up fallback — handles Figma @2x exports and other non-native sizes.
+   *    e.g. a Figma iPhone 16 artboard exported @2x gives 786×1704; multiplied
+   *    by 1.5 that becomes 1179×2556, which exactly matches iPhone 16 Portrait.
+   */
   const findFrameByScreenshotSize = (
     frames: DeviceFrame[],
     width: number,
     height: number
   ): DeviceFrame | undefined => {
-    const allSizes = frames.map((f) => ({
-      w: f.coordinates.screenshotWidth,
-      h: f.coordinates.screenshotHeight,
-    }));
-    const found = frames.find((frame: DeviceFrame) => {
+    // 1. Exact match
+    const exact = frames.find((frame: DeviceFrame) => {
       const fw = frame.coordinates.screenshotWidth;
       const fh = frame.coordinates.screenshotHeight;
       return (
@@ -55,11 +64,31 @@ const ScreenshotFramer = ({
         Math.abs(fh - height) <= TOLERANCE
       );
     });
-    return found;
+    if (exact) return exact;
+
+    // 2. Try common Figma export scale factors
+    //    Figma artboards are in logical points; exporting @2x from a 393×852
+    //    artboard gives 786×1704, which is 1.5× smaller than the @3x frame entry.
+    for (const scale of [1.5, 2, 3]) {
+      const scaled = frames.find((frame: DeviceFrame) => {
+        const fw = frame.coordinates.screenshotWidth;
+        const fh = frame.coordinates.screenshotHeight;
+        // Allow tolerance proportional to scale so rounding doesn't break matching
+        const tol = Math.ceil(TOLERANCE * scale);
+        return (
+          typeof fw === "number" &&
+          typeof fh === "number" &&
+          Math.abs(fw - Math.round(width * scale)) <= tol &&
+          Math.abs(fh - Math.round(height * scale)) <= tol
+        );
+      });
+      if (scaled) return scaled;
+    }
+
+    return undefined;
   };
 
   const handleFilesSelected = (files: File[]) => {
-    // Only accept image files
     const imageFiles = files.filter((file) => file.type.startsWith("image/"));
     if (imageFiles.length > 0) {
       const img = new window.Image();
@@ -72,11 +101,11 @@ const ScreenshotFramer = ({
         if (detectedFrame) {
           setSelectedFrame(detectedFrame);
           toast.success(
-            `Auto-detected: ${detectedFrame.coordinates.name} (${img.width}x${img.height}px)`
+            `Auto-detected: ${detectedFrame.coordinates.name} (${img.width}×${img.height}px)`
           );
         } else {
           toast.warning(
-            `No matching device found for size ${img.width}x${img.height}px`
+            `No matching device found for ${img.width}×${img.height}px — using current frame`
           );
         }
         setImages((prev) => {
@@ -114,13 +143,15 @@ const ScreenshotFramer = ({
     setShowSettings(!showSettings);
   };
 
-  // Helper to render a framed image for a given File and frame, returns a PNG blob
+  /**
+   * Render one framed image for download.
+   * The screenshot is always scaled to the frame's expected screenshotWidth ×
+   * screenshotHeight, so @2x Figma exports are upscaled to fill the screen area.
+   */
   const renderFramedImage = async (
     image: File,
     frame: DeviceFrame
   ): Promise<Blob> => {
-    // Dynamically import FramePreview's draw logic
-    // We'll inline the logic here for simplicity
     const loadImage = (src: string): Promise<HTMLImageElement> => {
       return new Promise((resolve, reject) => {
         const img = new window.Image();
@@ -129,64 +160,61 @@ const ScreenshotFramer = ({
         img.src = src;
       });
     };
+
     const imageUrl = URL.createObjectURL(image);
     try {
       const frameName = frame.coordinates.name;
       const framePath = `/frames/${frameName}.png`;
       const maskPath = `/frames/${frameName}_mask.png`;
+
       const [screenImg, frameImg] = await Promise.all([
         loadImage(imageUrl),
         loadImage(framePath),
       ]);
+
       let maskImg: HTMLImageElement | null = null;
       try {
         maskImg = await loadImage(maskPath);
       } catch {
-        // Mask doesn't exist, continue without it
+        // No mask file — continue without it
       }
-      // Use original size for download
+
       const scale = 1;
       const canvas = document.createElement("canvas");
       canvas.width = frameImg.width * scale;
       canvas.height = frameImg.height * scale;
+
       const ctx = canvas.getContext("2d");
       if (!ctx) throw new Error("No canvas context");
-      // Create a temporary canvas for the masked screenshot
-      const tempCanvas = document.createElement("canvas");
-      const tempCtx = tempCanvas.getContext("2d");
-      if (!tempCtx) throw new Error("No temp canvas context");
-      tempCanvas.width = canvas.width;
-      tempCanvas.height = canvas.height;
+
+      // Scale screenshot to match the frame's expected screen dimensions
+      const targetW = (frame.coordinates.screenshotWidth ?? screenImg.width) * scale;
+      const targetH = (frame.coordinates.screenshotHeight ?? screenImg.height) * scale;
+
       const { x, y } = frame.coordinates;
       const screenshotX = parseInt(x) * scale;
       const screenshotY = parseInt(y) * scale;
+
       if (maskImg) {
-        tempCtx.clearRect(0, 0, canvas.width, canvas.height);
+        const tempCanvas = document.createElement("canvas");
+        const tempCtx = tempCanvas.getContext("2d");
+        if (!tempCtx) throw new Error("No temp canvas context");
+        tempCanvas.width = canvas.width;
+        tempCanvas.height = canvas.height;
+
+        // Mask must be at the same dimensions as the target screenshot area
         const maskCanvas = document.createElement("canvas");
         const maskCtx = maskCanvas.getContext("2d");
         if (!maskCtx) throw new Error("No mask canvas context");
-        maskCanvas.width = screenImg.width * scale;
-        maskCanvas.height = screenImg.height * scale;
-        maskCtx.drawImage(maskImg, 0, 0, maskCanvas.width, maskCanvas.height);
-        const maskData = maskCtx.getImageData(
-          0,
-          0,
-          maskCanvas.width,
-          maskCanvas.height
-        );
-        tempCtx.drawImage(
-          screenImg,
-          screenshotX,
-          screenshotY,
-          screenImg.width * scale,
-          screenImg.height * scale
-        );
-        const imageData = tempCtx.getImageData(
-          screenshotX,
-          screenshotY,
-          screenImg.width * scale,
-          screenImg.height * scale
-        );
+        maskCanvas.width = targetW;
+        maskCanvas.height = targetH;
+        maskCtx.drawImage(maskImg, 0, 0, targetW, targetH);
+        const maskData = maskCtx.getImageData(0, 0, targetW, targetH);
+
+        // Draw screenshot scaled to target dimensions
+        tempCtx.drawImage(screenImg, screenshotX, screenshotY, targetW, targetH);
+        const imageData = tempCtx.getImageData(screenshotX, screenshotY, targetW, targetH);
+
         for (let i = 0; i < maskData.data.length; i += 4) {
           if (
             maskData.data[i] === 0 &&
@@ -196,18 +224,23 @@ const ScreenshotFramer = ({
             imageData.data[i + 3] = 0;
           }
         }
+
         tempCtx.putImageData(imageData, screenshotX, screenshotY);
         ctx.drawImage(tempCanvas, 0, 0);
       } else {
-        ctx.drawImage(
-          screenImg,
-          screenshotX,
-          screenshotY,
-          screenImg.width * scale,
-          screenImg.height * scale
-        );
+        ctx.drawImage(screenImg, screenshotX, screenshotY, targetW, targetH);
       }
-      ctx.drawImage(frameImg, 0, 0, canvas.width, canvas.height);
+
+      // Draw the device frame, optionally in black
+      if (blackFrame) {
+        ctx.save();
+        ctx.filter = "brightness(0)";
+        ctx.drawImage(frameImg, 0, 0, canvas.width, canvas.height);
+        ctx.restore();
+      } else {
+        ctx.drawImage(frameImg, 0, 0, canvas.width, canvas.height);
+      }
+
       return await new Promise<Blob>((resolve) => {
         canvas.toBlob((blob) => {
           if (blob) resolve(blob);
@@ -218,15 +251,12 @@ const ScreenshotFramer = ({
     }
   };
 
-  // Download all framed images as zip
   const handleDownloadZip = async () => {
-    toast.info("Creating a zip...");
+    toast.info("Creating zip...");
     const zip = new JSZip();
     for (let i = 0; i < images.length; i++) {
-      const image = images[i];
-      // Use the currently selected frame for all images
-      const blob = await renderFramedImage(image, selectedFrame!);
-      zip.file(`framed-${image.name.replace(/\.[^/.]+$/, "")}.png`, blob);
+      const blob = await renderFramedImage(images[i], selectedFrame!);
+      zip.file(`framed-${images[i].name.replace(/\.[^/.]+$/, "")}.png`, blob);
     }
     const content = await zip.generateAsync({ type: "blob" });
     const link = document.createElement("a");
@@ -259,7 +289,6 @@ const ScreenshotFramer = ({
     );
   }
 
-  // If no frames or no selectedFrame, show the uploader
   if (!frames.length || !selectedFrame) {
     return (
       <div className="w-full max-w-6xl">
@@ -275,42 +304,69 @@ const ScreenshotFramer = ({
       {images.length === 0 && (
         <div className="mb-8 px-2 py-5 bg-gradient-to-r from-gray-50 via-white to-gray-100 border border-gray-200 rounded-2xl shadow flex flex-col items-center text-center relative overflow-hidden">
           <p className="text-base md:text-lg text-gray-700 max-w-3xl mx-auto mb-1">
-            Frame your <span className="font-semibold text-black">iPhone</span>,{" "}
-            <span className="font-semibold text-black">iPad</span>, and{" "}
-            <span className="font-semibold text-black">Apple Watch</span>{" "}
-            screenshots in beautiful, realistic Apple device mockups.
+            Frame your{" "}
+            <span className="font-semibold text-black">iPhone 16</span>{" "}
+            screenshots for{" "}
+            <span className="font-semibold text-black">presentations</span>.
           </p>
           <p className="text-sm text-gray-500 max-w-xl mx-auto">
-            Just upload your screenshots—AppleFramer auto-detects the device,
-            supports batch processing, and lets you download your framed images
-            individually or as a zip. Perfect for App Store, marketing, or
-            portfolio use.
+            Upload screenshots from Figma or your device — auto-detected and
+            framed instantly. Supports @2x exports from Figma.
           </p>
         </div>
       )}
       <div className="bg-white rounded-xl shadow-xl overflow-hidden transition-all duration-300">
         {images.length === 0 ? (
-          <>
-            <UploadZone onFilesSelected={handleFilesSelected} />
-          </>
+          <UploadZone onFilesSelected={handleFilesSelected} />
         ) : (
           <div className="flex flex-col md:flex-row min-h-[500px]">
+            {/* Preview area */}
             <div className="w-full md:w-3/4 p-6 flex items-center justify-center relative">
               {selectedImageIndex !== null && (
                 <FramePreview
                   image={images[selectedImageIndex]}
                   frame={selectedFrame}
+                  blackFrame={blackFrame}
                 />
               )}
 
-              <button
-                className="absolute top-4 right-4 p-2 bg-gray-100 hover:bg-gray-200 rounded-full transition-colors"
-                onClick={toggleSettings}
-              >
-                <Settings className="h-5 w-5 text-gray-600" />
-              </button>
+              {/* Top-right controls */}
+              <div className="absolute top-4 right-4 flex gap-2">
+                {/* Black / White frame toggle */}
+                <button
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors border ${
+                    blackFrame
+                      ? "bg-black text-white border-black"
+                      : "bg-white text-gray-700 border-gray-300 hover:bg-gray-100"
+                  }`}
+                  onClick={() => setBlackFrame(true)}
+                  title="Black frame"
+                >
+                  Black
+                </button>
+                <button
+                  className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors border ${
+                    !blackFrame
+                      ? "bg-gray-700 text-white border-gray-700"
+                      : "bg-white text-gray-700 border-gray-300 hover:bg-gray-100"
+                  }`}
+                  onClick={() => setBlackFrame(false)}
+                  title="Original frame color"
+                >
+                  Original
+                </button>
+
+                <button
+                  className="p-2 bg-gray-100 hover:bg-gray-200 rounded-full transition-colors"
+                  onClick={toggleSettings}
+                  title="Frame settings"
+                >
+                  <Settings className="h-5 w-5 text-gray-600" />
+                </button>
+              </div>
             </div>
 
+            {/* Sidebar */}
             <div className="w-full md:w-1/4 bg-gray-50 p-4 border-t md:border-t-0 md:border-l border-gray-200">
               <div className="flex justify-between items-center mb-4">
                 <h3 className="font-medium">Screenshots</h3>
