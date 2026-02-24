@@ -310,8 +310,8 @@ const ScreenshotFramer = ({
             <span className="font-semibold text-black">presentations</span>.
           </p>
           <p className="text-sm text-gray-500 max-w-xl mx-auto">
-            Upload screenshots from Figma or your device — auto-detected and
-            framed instantly. Supports @2x exports from Figma.
+            Upload screenshots from Figma at @2x (786×1704) — auto-detected and
+            framed instantly with the custom black bezel.
           </p>
         </div>
       )}
