@@ -29,8 +29,13 @@ const ScreenshotFramer = ({
   const [selectedImageIndex, setSelectedImageIndex] = useState<number | null>(
     null
   );
-  // Black frame is the default for presentations
-  const [blackFrame, setBlackFrame] = useState(true);
+  // Frame colour: 'black' (default) or 'titanium' (Natural Titanium)
+  type FrameStyle = 'black' | 'titanium';
+  const FRAME_FILTERS: Record<FrameStyle, string> = {
+    black:    'brightness(0)',
+    titanium: 'grayscale(1) brightness(0.85) contrast(1.08) sepia(0.1)',
+  };
+  const [frameStyle, setFrameStyle] = useState<FrameStyle>('black');
 
   // Auto-select the first (and only) frame when frames load
   useEffect(() => {
@@ -231,15 +236,11 @@ const ScreenshotFramer = ({
         ctx.drawImage(screenImg, screenshotX, screenshotY, targetW, targetH);
       }
 
-      // Draw the device frame, optionally in black
-      if (blackFrame) {
-        ctx.save();
-        ctx.filter = "brightness(0)";
-        ctx.drawImage(frameImg, 0, 0, canvas.width, canvas.height);
-        ctx.restore();
-      } else {
-        ctx.drawImage(frameImg, 0, 0, canvas.width, canvas.height);
-      }
+      // Draw the device frame with the chosen colour filter
+      ctx.save();
+      ctx.filter = FRAME_FILTERS[frameStyle];
+      ctx.drawImage(frameImg, 0, 0, canvas.width, canvas.height);
+      ctx.restore();
 
       return await new Promise<Blob>((resolve) => {
         canvas.toBlob((blob) => {
@@ -326,34 +327,34 @@ const ScreenshotFramer = ({
                 <FramePreview
                   image={images[selectedImageIndex]}
                   frame={selectedFrame}
-                  blackFrame={blackFrame}
+                  frameStyle={frameStyle}
                 />
               )}
 
               {/* Top-right controls */}
               <div className="absolute top-4 right-4 flex gap-2">
-                {/* Black / White frame toggle */}
+                {/* Frame colour toggle */}
                 <button
                   className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors border ${
-                    blackFrame
+                    frameStyle === 'black'
                       ? "bg-black text-white border-black"
                       : "bg-white text-gray-700 border-gray-300 hover:bg-gray-100"
                   }`}
-                  onClick={() => setBlackFrame(true)}
+                  onClick={() => setFrameStyle('black')}
                   title="Black frame"
                 >
                   Black
                 </button>
                 <button
                   className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors border ${
-                    !blackFrame
-                      ? "bg-gray-700 text-white border-gray-700"
-                      : "bg-white text-gray-700 border-gray-300 hover:bg-gray-100"
+                    frameStyle === 'titanium'
+                      ? "bg-gradient-to-b from-gray-300 to-gray-400 text-gray-800 border-gray-400"
+                      : "bg-white text-gray-500 border-gray-300 hover:bg-gray-50"
                   }`}
-                  onClick={() => setBlackFrame(false)}
-                  title="Original frame color"
+                  onClick={() => setFrameStyle('titanium')}
+                  title="Natural Titanium frame"
                 >
-                  Original
+                  Natural Titanium
                 </button>
 
                 <button
