@@ -2,13 +2,15 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Download } from 'lucide-react';
 import { DeviceFrame } from '../hooks/useFrames';
 
+type FrameStyle = 'black' | 'titanium';
+
 interface FramePreviewProps {
   image: File;
   frame: DeviceFrame;
-  blackFrame?: boolean; // default true — render device bezel in black
+  frameStyle?: FrameStyle; // 'black' (default) or 'titanium' (Natural Titanium)
 }
 
-const FramePreview = ({ image, frame, blackFrame = true }: FramePreviewProps) => {
+const FramePreview = ({ image, frame, frameStyle = 'black' }: FramePreviewProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [imageUrl, setImageUrl] = useState<string>('');
 
@@ -25,6 +27,18 @@ const FramePreview = ({ image, frame, blackFrame = true }: FramePreviewProps) =>
       img.onerror = reject;
       img.src = src;
     });
+  };
+
+  /**
+   * Canvas filter strings for each frame style.
+   * 'black'    → pure black bezel (brightness 0 zeroes out all RGB, preserves alpha)
+   * 'titanium' → Natural Titanium look: fully desaturate the pink frame, tune
+   *              brightness/contrast, add a whisper of warm sepia to match the
+   *              slightly warm brushed-titanium finish of the iPhone 15 Pro.
+   */
+  const FRAME_FILTERS: Record<FrameStyle, string> = {
+    black:    'brightness(0)',
+    titanium: 'grayscale(1) brightness(0.85) contrast(1.08) sepia(0.1)',
   };
 
   const drawImageWithFrame = useCallback(async (forDownload = false) => {
@@ -106,24 +120,20 @@ const FramePreview = ({ image, frame, blackFrame = true }: FramePreviewProps) =>
         ctx.drawImage(screenImg, screenshotX, screenshotY, targetW, targetH);
       }
 
-      // Draw the device frame, optionally in black
-      if (blackFrame) {
-        ctx.save();
-        ctx.filter = 'brightness(0)';
-        ctx.drawImage(frameImg, 0, 0, canvas.width, canvas.height);
-        ctx.restore();
-      } else {
-        ctx.drawImage(frameImg, 0, 0, canvas.width, canvas.height);
-      }
+      // Draw the device frame with the chosen colour filter
+      ctx.save();
+      ctx.filter = FRAME_FILTERS[frameStyle];
+      ctx.drawImage(frameImg, 0, 0, canvas.width, canvas.height);
+      ctx.restore();
     } catch (error) {
       console.error('Error loading images:', error);
     }
-  }, [imageUrl, frame, blackFrame]);
+  }, [imageUrl, frame, frameStyle]);
 
   useEffect(() => {
     if (!canvasRef.current || !imageUrl) return;
     drawImageWithFrame();
-  }, [imageUrl, frame, blackFrame, drawImageWithFrame]);
+  }, [imageUrl, frame, frameStyle, drawImageWithFrame]);
 
   const handleDownload = () => {
     if (!canvasRef.current) return;
