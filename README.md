@@ -20,4 +20,4 @@ Frame your Apple device screenshots with a beautiful device bezel. All processin
 - Start the dev server: `yarn dev` or `npm run dev`
 
 ## License
-[MIT License](LICENSE) - Copyright (c) 2025 Tim Broddin 
+[MIT License](LICENSE) - Copyright (c) 2025 Tim Broddin C
