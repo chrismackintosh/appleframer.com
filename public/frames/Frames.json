@@ -3,18 +3,11 @@
     "16": {
       "Standard": {
         "Portrait": {
-          "x": "90",
-          "y": "90",
-          "name": "iPhone 16 Portrait",
-          "screenshotWidth": 1179,
-          "screenshotHeight": 2556
-        },
-        "Landscape": {
-          "x": "90",
-          "y": "90",
-          "name": "iPhone 16 Landscape",
-          "screenshotWidth": 2556,
-          "screenshotHeight": 1179
+          "x": "81",
+          "y": "81",
+          "name": "iPhone 16 Black",
+          "screenshotWidth": 784,
+          "screenshotHeight": 1702
         }
       }
     }
