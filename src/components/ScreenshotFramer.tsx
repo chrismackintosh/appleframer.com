@@ -30,7 +30,7 @@ const ScreenshotFramer = ({
     null
   );
   // Black frame is the default for presentations
-  const [blackFrame, setBlackFrame] = useState(true);
+  const [blackFrame, setBlackFrame] = useState(false);
 
   // Auto-select the first (and only) frame when frames load
   useEffect(() => {
