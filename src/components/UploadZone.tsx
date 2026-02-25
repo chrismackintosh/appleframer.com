@@ -41,15 +41,14 @@ const UploadZone = ({ onFilesSelected }: UploadZoneProps) => {
   return (
     <div
       className={`flex flex-col items-center justify-center p-12 transition-all duration-300 min-h-[500px]
-      ${isDragging ? 'border-green-300' : 'bg-gray-50 border-green-300'}
+      ${isDragging ? 'bg-blue-50 border-blue-300' : 'bg-gray-50 border-gray-200'}
       border-2 border-dashed rounded-lg`}
-      style={isDragging ? { backgroundColor: 'oklch(96.2% 0.044 156.743)' } : {}}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
-      <div className={`mb-6 p-6 rounded-full ${isDragging ? 'bg-green-100' : 'bg-gray-100'} transition-colors duration-300`}>
-        <Upload className={`h-12 w-12 ${isDragging ? 'text-green-300' : 'text-gray-400'}`} />
+      <div className={`mb-6 p-6 rounded-full ${isDragging ? 'bg-blue-100' : 'bg-gray-100'} transition-colors duration-300`}>
+        <Upload className={`h-12 w-12 ${isDragging ? 'text-blue-500' : 'text-gray-400'}`} />
       </div>
 
       <h2 className="text-xl font-medium mb-2">Upload Apple Device Screenshots</h2>
@@ -60,9 +59,7 @@ const UploadZone = ({ onFilesSelected }: UploadZoneProps) => {
 
       <div className="flex flex-wrap justify-center gap-3">
         <button
-          className="py-2 px-6 bg-black text-white rounded-lg flex items-center transition-colors"
-          onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'oklch(96.2% 0.044 156.743)'; e.currentTarget.style.color = 'black'; }}
-          onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'black'; e.currentTarget.style.color = 'white'; }}
+          className="py-2 px-6 bg-blue-500 hover:bg-blue-600 text-white rounded-lg flex items-center transition-colors"
           onClick={handleButtonClick}
         >
           <ImageIcon className="h-4 w-4 mr-2" />
@@ -85,3 +82,6 @@ const UploadZone = ({ onFilesSelected }: UploadZoneProps) => {
       </div>
     </div>
   );
+};
+
+export default UploadZone;
