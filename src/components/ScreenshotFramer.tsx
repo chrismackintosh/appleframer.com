@@ -207,7 +207,7 @@ const ScreenshotFramer = ({
             <span className="font-semibold text-black">presentations</span>.
           </p>
           <p className="text-sm text-gray-500 max-w-xl mx-auto">
-            Drop any iPhone screenshot — it will be automatically scaled and
+            Export iPhone screen from Figma @2x, drop any iPhone screenshot — it will be automatically scaled and
             framed with the custom black bezel.
           </p>
         </div>
