@@ -5,7 +5,7 @@ import { DeviceFrame } from '../hooks/useFrames';
 interface FramePreviewProps {
   image: File;
   frame: DeviceFrame;
-  blackFrame?: boolean; // default true — render device bezel in black
+  blackFrame?: boolean;
 }
 
 const FramePreview = ({ image, frame, blackFrame = true }: FramePreviewProps) => {
@@ -37,35 +37,41 @@ const FramePreview = ({ image, frame, blackFrame = true }: FramePreviewProps) =>
     try {
       const frameName = frame.coordinates.name;
       const framePath = `/frames/${frameName}.png`;
+      const maskPath = `/frames/${frameName}_mask.png`;
 
       const [screenImg, frameImg] = await Promise.all([
         loadImage(imageUrl),
-        loadImage(framePath)
+        loadImage(framePath),
       ]);
 
-      // Canvas matches the full frame image size
+      // Try to load the screen-hole mask (white = screen hole, transparent elsewhere).
+      // Generated from the bezel PNG via exterior flood fill so corners are pixel-perfect.
+      let maskImg: HTMLImageElement | null = null;
+      try {
+        maskImg = await loadImage(maskPath);
+      } catch {
+        // No mask — screenshot won't be corner-clipped but will still render
+      }
+
       canvas.width = frameImg.width;
       canvas.height = frameImg.height;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      // Where the screenshot sits inside the frame
       const { x, y } = frame.coordinates;
       const screenshotX = parseInt(x);
       const screenshotY = parseInt(y);
 
-      // Scale screenshot to the frame's expected dimensions regardless of input resolution.
-      // This means @2x Figma exports (e.g. 786×1704) are stretched to fill the
-      // frame's screen area — same aspect ratio, so no distortion.
+      // Always scale screenshot to the frame's expected screen dimensions,
+      // regardless of input resolution (@1x, @2x, @3x Figma exports or device screenshots).
       const targetW = frame.coordinates.screenshotWidth ?? screenImg.width;
       const targetH = frame.coordinates.screenshotHeight ?? screenImg.height;
 
-      // ── Draw screenshot clipped to the screen hole ────────────────
-      // Use the frame PNG itself as the clip mask via canvas compositing:
+      // ── Draw screenshot, clipped to the screen hole ───────────────
       // 1. Draw screenshot onto a temp canvas at the correct position/size
-      // 2. Apply destination-out with the frame PNG — this erases screenshot pixels
-      //    wherever the frame is opaque (the bezel), leaving screenshot only
-      //    in the transparent screen hole. Corners and the Dynamic Island are
-      //    automatically handled by the frame's own alpha channel.
+      // 2. Apply destination-in with the mask — keeps screenshot pixels
+      //    only where the mask is opaque (the screen hole interior).
+      //    This clips the rounded corners and excludes the Dynamic Island area.
+      // 3. Composite the clipped screenshot onto the main canvas.
       const tmpCanvas = document.createElement('canvas');
       const tmpCtx = tmpCanvas.getContext('2d');
       if (!tmpCtx) return;
@@ -73,12 +79,15 @@ const FramePreview = ({ image, frame, blackFrame = true }: FramePreviewProps) =>
       tmpCanvas.height = canvas.height;
 
       tmpCtx.drawImage(screenImg, screenshotX, screenshotY, targetW, targetH);
-      tmpCtx.globalCompositeOperation = 'destination-out';
-      tmpCtx.drawImage(frameImg, 0, 0, canvas.width, canvas.height);
+
+      if (maskImg) {
+        tmpCtx.globalCompositeOperation = 'destination-in';
+        tmpCtx.drawImage(maskImg, 0, 0, canvas.width, canvas.height);
+      }
 
       ctx.drawImage(tmpCanvas, 0, 0);
 
-      // ── Draw the device frame on top, optionally in black ─────────
+      // ── Draw device frame on top ──────────────────────────────────
       if (blackFrame) {
         ctx.save();
         ctx.filter = 'brightness(0)';
