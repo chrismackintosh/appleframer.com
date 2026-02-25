@@ -41,14 +41,14 @@ const UploadZone = ({ onFilesSelected }: UploadZoneProps) => {
   return (
     <div
       className={`flex flex-col items-center justify-center p-12 transition-all duration-300 min-h-[500px]
-      ${isDragging ? 'bg-green-50 border-green-500' : 'bg-gray-50 border-green-500'}
+      ${isDragging ? 'bg-green-50 border-green-300' : 'bg-gray-50 border-green-300'}
       border-2 border-dashed rounded-lg`}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
     >
       <div className={`mb-6 p-6 rounded-full ${isDragging ? 'bg-green-100' : 'bg-gray-100'} transition-colors duration-300`}>
-        <Upload className={`h-12 w-12 ${isDragging ? 'text-green-500' : 'text-gray-400'}`} />
+        <Upload className={`h-12 w-12 ${isDragging ? 'text-green-300' : 'text-gray-400'}`} />
       </div>
 
       <h2 className="text-xl font-medium mb-2">Upload Apple Device Screenshots</h2>
