@@ -59,7 +59,9 @@ const UploadZone = ({ onFilesSelected }: UploadZoneProps) => {
 
       <div className="flex flex-wrap justify-center gap-3">
         <button
-          className="py-2 px-6 bg-black hover:bg-gray-800 text-white rounded-lg flex items-center transition-colors"
+          className="py-2 px-6 bg-black text-white rounded-lg flex items-center transition-colors"
+          onMouseEnter={e => { e.currentTarget.style.backgroundColor = 'oklch(96.2% 0.044 156.743)'; e.currentTarget.style.color = 'black'; }}
+          onMouseLeave={e => { e.currentTarget.style.backgroundColor = 'black'; e.currentTarget.style.color = 'white'; }}
           onClick={handleButtonClick}
         >
           <ImageIcon className="h-4 w-4 mr-2" />
@@ -83,5 +85,3 @@ const UploadZone = ({ onFilesSelected }: UploadZoneProps) => {
     </div>
   );
 };
-
-export default UploadZone;
