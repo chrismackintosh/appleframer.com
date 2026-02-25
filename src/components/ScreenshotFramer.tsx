@@ -137,14 +137,8 @@ const ScreenshotFramer = ({
 
       ctx.drawImage(tmpCanvas, 0, 0);
 
-      if (blackFrame) {
-        ctx.save();
-        ctx.filter = "brightness(0)";
-        ctx.drawImage(frameImg, 0, 0, canvas.width, canvas.height);
-        ctx.restore();
-      } else {
-        ctx.drawImage(frameImg, 0, 0, canvas.width, canvas.height);
-      }
+      // Draw frame on top. No brightness filter needed — the PNG is already black.
+      ctx.drawImage(frameImg, 0, 0, canvas.width, canvas.height);
 
       return await new Promise<Blob>((resolve) => {
         canvas.toBlob((blob) => {
