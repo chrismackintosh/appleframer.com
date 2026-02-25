@@ -41,8 +41,9 @@ const UploadZone = ({ onFilesSelected }: UploadZoneProps) => {
   return (
     <div
       className={`flex flex-col items-center justify-center p-12 transition-all duration-300 min-h-[500px]
-      ${isDragging ? 'bg-green-50 border-green-300' : 'bg-gray-50 border-green-300'}
+      ${isDragging ? 'border-green-300' : 'bg-gray-50 border-green-300'}
       border-2 border-dashed rounded-lg`}
+      style={isDragging ? { backgroundColor: 'oklch(96.2% 0.044 156.743)' } : {}}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
@@ -84,4 +85,3 @@ const UploadZone = ({ onFilesSelected }: UploadZoneProps) => {
       </div>
     </div>
   );
-};
