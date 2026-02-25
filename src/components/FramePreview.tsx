@@ -5,10 +5,9 @@ import { DeviceFrame } from '../hooks/useFrames';
 interface FramePreviewProps {
   image: File;
   frame: DeviceFrame;
-  blackFrame?: boolean;
 }
 
-const FramePreview = ({ image, frame, blackFrame = true }: FramePreviewProps) => {
+const FramePreview = ({ image, frame }: FramePreviewProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [imageUrl, setImageUrl] = useState<string>('');
 
