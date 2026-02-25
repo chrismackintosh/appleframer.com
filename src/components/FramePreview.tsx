@@ -37,19 +37,11 @@ const FramePreview = ({ image, frame, blackFrame = true }: FramePreviewProps) =>
     try {
       const frameName = frame.coordinates.name;
       const framePath = `/frames/${frameName}.png`;
-      const maskPath = `/frames/${frameName}_mask.png`;
 
       const [screenImg, frameImg] = await Promise.all([
         loadImage(imageUrl),
         loadImage(framePath)
       ]);
-
-      let maskImg: HTMLImageElement | null = null;
-      try {
-        maskImg = await loadImage(maskPath);
-      } catch {
-        // No mask file — continue without it
-      }
 
       // Canvas matches the full frame image size
       canvas.width = frameImg.width;
@@ -63,50 +55,30 @@ const FramePreview = ({ image, frame, blackFrame = true }: FramePreviewProps) =>
 
       // Scale screenshot to the frame's expected dimensions regardless of input resolution.
       // This means @2x Figma exports (e.g. 786×1704) are stretched to fill the
-      // frame's 1179×2556 screen area — same aspect ratio, so no distortion.
+      // frame's screen area — same aspect ratio, so no distortion.
       const targetW = frame.coordinates.screenshotWidth ?? screenImg.width;
       const targetH = frame.coordinates.screenshotHeight ?? screenImg.height;
 
-      if (maskImg) {
-        // ── Masked path ──────────────────────────────────────────────
-        const tempCanvas = document.createElement('canvas');
-        const tempCtx = tempCanvas.getContext('2d');
-        if (!tempCtx) return;
-        tempCanvas.width = canvas.width;
-        tempCanvas.height = canvas.height;
+      // ── Draw screenshot clipped to the screen hole ────────────────
+      // Use the frame PNG itself as the clip mask via canvas compositing:
+      // 1. Draw screenshot onto a temp canvas at the correct position/size
+      // 2. Apply destination-out with the frame PNG — this erases screenshot pixels
+      //    wherever the frame is opaque (the bezel), leaving screenshot only
+      //    in the transparent screen hole. Corners and the Dynamic Island are
+      //    automatically handled by the frame's own alpha channel.
+      const tmpCanvas = document.createElement('canvas');
+      const tmpCtx = tmpCanvas.getContext('2d');
+      if (!tmpCtx) return;
+      tmpCanvas.width = canvas.width;
+      tmpCanvas.height = canvas.height;
 
-        // Draw the mask scaled to target dimensions so pixel indices align
-        const maskCanvas = document.createElement('canvas');
-        const maskCtx = maskCanvas.getContext('2d');
-        if (!maskCtx) return;
-        maskCanvas.width = targetW;
-        maskCanvas.height = targetH;
-        maskCtx.drawImage(maskImg, 0, 0, targetW, targetH);
-        const maskData = maskCtx.getImageData(0, 0, targetW, targetH);
+      tmpCtx.drawImage(screenImg, screenshotX, screenshotY, targetW, targetH);
+      tmpCtx.globalCompositeOperation = 'destination-out';
+      tmpCtx.drawImage(frameImg, 0, 0, canvas.width, canvas.height);
 
-        // Draw screenshot scaled to target dimensions
-        tempCtx.drawImage(screenImg, screenshotX, screenshotY, targetW, targetH);
-        const imageData = tempCtx.getImageData(screenshotX, screenshotY, targetW, targetH);
+      ctx.drawImage(tmpCanvas, 0, 0);
 
-        // Punch out pixels where the mask is black
-        for (let i = 0; i < maskData.data.length; i += 4) {
-          if (
-            maskData.data[i] === 0 &&
-            maskData.data[i + 1] === 0 &&
-            maskData.data[i + 2] === 0
-          ) {
-            imageData.data[i + 3] = 0;
-          }
-        }
-
-        tempCtx.putImageData(imageData, screenshotX, screenshotY);
-        ctx.drawImage(tempCanvas, 0, 0);
-      } else {
-        // ── No-mask path ─────────────────────────────────────────────
-        ctx.drawImage(screenImg, screenshotX, screenshotY, targetW, targetH);
-      }
-
-      // Draw the device frame, optionally in black
+      // ── Draw the device frame on top, optionally in black ─────────
       if (blackFrame) {
         ctx.save();
         ctx.filter = 'brightness(0)';
