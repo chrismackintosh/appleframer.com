@@ -27,7 +27,7 @@ const FramePreview = ({ image, frame, blackFrame = true }: FramePreviewProps) =>
     });
   };
 
-  const drawImageWithFrame = useCallback(async (forDownload = false) => {
+  const drawImageWithFrame = useCallback(async () => {
     const canvas = canvasRef.current;
     if (!canvas) return;
 
@@ -44,13 +44,13 @@ const FramePreview = ({ image, frame, blackFrame = true }: FramePreviewProps) =>
         loadImage(framePath),
       ]);
 
-      // Try to load the screen-hole mask (white = screen hole, transparent elsewhere).
-      // Generated from the bezel PNG via exterior flood fill so corners are pixel-perfect.
+      // Screen-hole mask: white pixels = visible area, transparent = hidden.
+      // Generated from the bezel PNG via exterior flood fill for pixel-perfect clipping.
       let maskImg: HTMLImageElement | null = null;
       try {
         maskImg = await loadImage(maskPath);
       } catch {
-        // No mask — screenshot won't be corner-clipped but will still render
+        // No mask — corners won't be clipped but framing still works
       }
 
       canvas.width = frameImg.width;
@@ -61,17 +61,11 @@ const FramePreview = ({ image, frame, blackFrame = true }: FramePreviewProps) =>
       const screenshotX = parseInt(x);
       const screenshotY = parseInt(y);
 
-      // Always scale screenshot to the frame's expected screen dimensions,
-      // regardless of input resolution (@1x, @2x, @3x Figma exports or device screenshots).
+      // Scale screenshot to the frame's screen hole dimensions regardless of input size.
       const targetW = frame.coordinates.screenshotWidth ?? screenImg.width;
       const targetH = frame.coordinates.screenshotHeight ?? screenImg.height;
 
-      // ── Draw screenshot, clipped to the screen hole ───────────────
-      // 1. Draw screenshot onto a temp canvas at the correct position/size
-      // 2. Apply destination-in with the mask — keeps screenshot pixels
-      //    only where the mask is opaque (the screen hole interior).
-      //    This clips the rounded corners and excludes the Dynamic Island area.
-      // 3. Composite the clipped screenshot onto the main canvas.
+      // Draw screenshot clipped to screen hole via destination-in mask.
       const tmpCanvas = document.createElement('canvas');
       const tmpCtx = tmpCanvas.getContext('2d');
       if (!tmpCtx) return;
@@ -81,62 +75,37 @@ const FramePreview = ({ image, frame, blackFrame = true }: FramePreviewProps) =>
       tmpCtx.drawImage(screenImg, screenshotX, screenshotY, targetW, targetH);
 
       if (maskImg) {
+        // Keep screenshot only where mask is white (the screen hole interior).
         tmpCtx.globalCompositeOperation = 'destination-in';
         tmpCtx.drawImage(maskImg, 0, 0, canvas.width, canvas.height);
       }
 
       ctx.drawImage(tmpCanvas, 0, 0);
 
-      // ── Draw device frame on top ──────────────────────────────────
-      if (blackFrame) {
-        ctx.save();
-        ctx.filter = 'brightness(0)';
-        ctx.drawImage(frameImg, 0, 0, canvas.width, canvas.height);
-        ctx.restore();
-      } else {
-        ctx.drawImage(frameImg, 0, 0, canvas.width, canvas.height);
-      }
+      // Draw the frame on top. No brightness filter needed — the PNG is already black.
+      ctx.drawImage(frameImg, 0, 0, canvas.width, canvas.height);
+
     } catch (error) {
-      console.error('Error loading images:', error);
+      console.error('Error rendering frame:', error);
     }
-  }, [imageUrl, frame, blackFrame]);
+  }, [imageUrl, frame]);
 
   useEffect(() => {
     if (!canvasRef.current || !imageUrl) return;
     drawImageWithFrame();
-  }, [imageUrl, frame, blackFrame, drawImageWithFrame]);
+  }, [imageUrl, frame, drawImageWithFrame]);
 
+  // Export the already-rendered preview canvas directly — no re-render needed.
   const handleDownload = () => {
-    if (!canvasRef.current) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
 
-    const tempCanvas = document.createElement('canvas');
-    const tempCtx = tempCanvas.getContext('2d');
-    if (!tempCtx) return;
-
-    const originalCanvas = canvasRef.current;
-
-    const tempCanvasRef = { current: tempCanvas };
-    Object.defineProperty(canvasRef, 'current', {
-      configurable: true,
-      get() { return tempCanvasRef.current; }
-    });
-
-    drawImageWithFrame(true);
-
-    setTimeout(() => {
-      const link = document.createElement('a');
-      link.download = `framed-${image.name.replace(/\.[^/.]+$/, '')}.png`;
-      link.href = tempCanvas.toDataURL('image/png');
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-
-      Object.defineProperty(canvasRef, 'current', {
-        configurable: true,
-        get() { return originalCanvas; }
-      });
-      drawImageWithFrame(false);
-    }, 100);
+    const link = document.createElement('a');
+    link.download = `framed-${image.name.replace(/\.[^/.]+$/, '')}.png`;
+    link.href = canvas.toDataURL('image/png');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   return (
