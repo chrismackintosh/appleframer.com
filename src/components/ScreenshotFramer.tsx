@@ -26,8 +26,6 @@ const ScreenshotFramer = ({
   const [selectedImageIndex, setSelectedImageIndex] = useState<number | null>(
     null
   );
-  const [blackFrame, setBlackFrame] = useState(false);
-
   useEffect(() => {
     if (frames.length > 0 && !selectedFrame) {
       setSelectedFrame(frames[0]);
@@ -224,34 +222,10 @@ const ScreenshotFramer = ({
                 <FramePreview
                   image={images[selectedImageIndex]}
                   frame={selectedFrame}
-                  blackFrame={blackFrame}
                 />
               )}
 
               <div className="absolute top-4 right-4 flex gap-2">
-                <button
-                  className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors border ${
-                    blackFrame
-                      ? "bg-black text-white border-black"
-                      : "bg-white text-gray-700 border-gray-300 hover:bg-gray-100"
-                  }`}
-                  onClick={() => setBlackFrame(true)}
-                  title="Black frame"
-                >
-                  Black
-                </button>
-                <button
-                  className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors border ${
-                    !blackFrame
-                      ? "bg-gray-700 text-white border-gray-700"
-                      : "bg-white text-gray-700 border-gray-300 hover:bg-gray-100"
-                  }`}
-                  onClick={() => setBlackFrame(false)}
-                  title="Original frame color"
-                >
-                  Original
-                </button>
-
                 <button
                   className="p-2 bg-gray-100 hover:bg-gray-200 rounded-full transition-colors"
                   onClick={toggleSettings}
